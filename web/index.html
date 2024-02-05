@@ -1,24 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
-<script charset="UTF-8" id="LA_COLLECT" src="//sdk.51.la/js-sdk-pro.min.js"></script>
-<script>LA.init({id:"K9FlZeADveWJTUnc",ck:"K9FlZeADveWJTUnc"})</script>
-  <head>
-    <meta name=referrer content=never>
-    <meta charset="UTF-8" />
-    <link rel="icon" href="./favicon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>自由播放器网页版</title>
-    <script type="module" crossorigin src="./assets/index.d916ef0b.js"></script>
-    <script src="https://2gether.video/release/extension.website.user.js"></script>
-    <link rel="stylesheet" href="./assets/index.bb8b2aab.css">
-  <link rel="manifest" href="./manifest.webmanifest"></head>
-  <body>
-        <style>
-    body {
-      text-align: center;
-    }
-  </style>
-    <div id="app"></div>
-<script id="LA-DATA-WIDGET" crossorigin="anonymous" charset="UTF-8" src="https://v6-widget.51.la/v6/K9FlZeADveWJTUnc/quote.js?theme=0&f=12&display=0,0,0,1,0,1,0,1"></script>
-  </body>
+<html lang="zh-CN">
+<head>
+<title>自由播放器</title>
+<meta name=referrer content=never>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="css/player.css" />
+<body>
+<div class="main ready">
+	<div class="player">loading...</div>
+	<div class="logo">  
+		<img src="./images/logo.4d5c9706.png" alt="播放器Logo">  
+	  </div>
+	<form class="form-control">
+		<input class="url" type="text" placeholder="请输入视频网址" value="" />
+		<input class="play" type="submit" value="" title="点击播放" />
+	</form>
+</div>
+<script src="js/jquery.min.js"></script>
+<script src="js/layer/layer.min.js"></script>
+<script src="js/artplayer/artplayer.js"></script>
+<script src="js/artplayer/artplayer-plugin-control.js"></script>
+<script src="js/artplayer/hls.min.js"></script>
+<script src="js/artplayer/artplayer-plugin-hls-quality.js"></script>
+<script src="js/player.js"></script>
+<script src="https://2gether.video/release/extension.website.user.js"></script>
+</body>
 </html>
