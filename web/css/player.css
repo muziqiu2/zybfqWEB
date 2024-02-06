@@ -83,7 +83,7 @@ body {
 .ready .form-control {  
   width: 60%;  
   padding-top: 5vh;  
-  background-color: #fff; /* 保持白色背景（实际上输入框背景还是淡灰色） */  
+  background-color: #FFFFFF00; /* 保持白色背景（实际上输入框背景还是淡灰色） */  
 }  
   
 .ready .form-control input {  
@@ -106,6 +106,6 @@ body {
   .ready .form-control {  
     width: 90%;  
     padding-top: 5vh;  
-    background-color: #fff; /* 保持白色背景（实际上输入框背景还是淡灰色） */  
+    background-color: #FFFFFF00; /* 保持白色背景（实际上输入框背景还是淡灰色） */  
   }  
 }
