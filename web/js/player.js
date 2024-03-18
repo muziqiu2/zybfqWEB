@@ -58,7 +58,7 @@ var playVideo = (videoUrl) => {
 			aspectRatio: true, // 画面比例
 			screenshot: false, // 截屏
 			setting: true, // 设置
-			pip: true, // 画中画
+			pip: false, // 画中画
 			fullscreenWeb: false, // 网页全屏
 			fullscreen: true, // 全屏
 			subtitleOffset: true, // 字幕偏移

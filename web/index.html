@@ -1,21 +1,22 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<title>自由播放器</title>
-<meta name="referrer" content="never">
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<link rel="stylesheet" href="css/player.css" />
+    <title>自由播放器</title>
+    <meta name="referrer" content="never">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="css/player.css" />
+</head>
 <body>
 <div class="main ready">
-	<div class="player">loading...</div>
-	<div class="logo">  
-		<img src="./images/logo.4d5c9706.png" alt="播放器Logo">  
-	  </div>
-	<form class="form-control">
-		<input class="url" type="text" placeholder="请输入视频网址" value="" />
-		<input class="play" type="submit" value="" title="点击播放" />
-	</form>
+    <div class="player">loading...</div>
+    <div class="logo">
+        <img src="./images/logo.4d5c9706.png" alt="播放器Logo">
+    </div>
+    <form class="form-control">
+        <input class="url" type="text" placeholder="请输入视频网址" value="" />
+        <input class="play" type="submit" value="" title="点击播放" />
+    </form>
 </div>
 <script src="js/jquery.min.js"></script>
 <script src="js/layer/layer.min.js"></script>
@@ -32,6 +33,11 @@
             // 向上调整按钮位置
             videoTogetherSamllIcon.css('top', '-20px'); // 向上调整 20px
         }
+    });
+
+    // 监听浏览器返回事件
+    window.addEventListener('popstate', function(event) {
+        location.reload(true); // 强制重新加载页面
     });
 </script>
 <script src="https://2gether.video/release/extension.website.user.js"></script>
