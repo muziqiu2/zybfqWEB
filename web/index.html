@@ -39,6 +39,20 @@
     window.addEventListener('popstate', function(event) {
         location.reload(true); // 强制重新加载页面
     });
+
+    // 进入全屏后检测方向并执行横屏操作
+    document.addEventListener('fullscreenchange', function(event) {
+        if (document.fullscreenElement) {
+            checkAndForceLandscape();
+        }
+    });
+
+    // 检测设备方向并执行横屏操作
+    function checkAndForceLandscape() {
+        if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock('landscape');
+        }
+    }
 </script>
 <script src="https://2gether.video/release/extension.website.user.js"></script>
 </body>
