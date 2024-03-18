@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <title>自由播放器</title>
-<meta name=referrer content=never>
+<meta name="referrer" content="never">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link rel="stylesheet" href="css/player.css" />
@@ -24,6 +24,16 @@
 <script src="js/artplayer/hls.min.js"></script>
 <script src="js/artplayer/artplayer-plugin-hls-quality.js"></script>
 <script src="js/player.js"></script>
+<script>
+    // 在文档加载完成后调整按钮位置
+    $(document).ready(function() {
+        var videoTogetherSamllIcon = $('#videoTogetherSamllIcon');
+        if (videoTogetherSamllIcon.length > 0) {
+            // 向上调整按钮位置
+            videoTogetherSamllIcon.css('top', '-20px'); // 向上调整 20px
+        }
+    });
+</script>
 <script src="https://2gether.video/release/extension.website.user.js"></script>
 </body>
 </html>
