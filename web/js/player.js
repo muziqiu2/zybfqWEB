@@ -55,7 +55,7 @@ var playVideo = (videoUrl) => {
 			loop: true, // 区间循序播放
 			flip: false, // 画面翻转
 			playbackRate: true, // 播放速度
-			aspectRatio: true, // 画面比例
+			aspectRatio: false, // 画面比例
 			screenshot: false, // 截屏
 			setting: true, // 设置
 			pip: false, // 画中画
