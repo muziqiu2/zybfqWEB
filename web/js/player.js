@@ -58,7 +58,7 @@ var playVideo = (videoUrl) => {
 			aspectRatio: false, // 画面比例
 			screenshot: false, // 截屏
 			setting: true, // 设置
-			pip: false, // 画中画
+			pip: true, // 画中画
 			fullscreenWeb: false, // 网页全屏
 			fullscreen: true, // 全屏
 			subtitleOffset: true, // 字幕偏移
@@ -69,7 +69,7 @@ var playVideo = (videoUrl) => {
 			subtitle: {},
 			highlight: [{
 				time: 15,
-				text: '欢迎使用m3u8播放器',
+				text: '欢迎使用自由播放器播放器',
 			}],
 			icons: {
 				loading: '<img src="images/loading.gif" width="100px" title="视频加载中..." />'
