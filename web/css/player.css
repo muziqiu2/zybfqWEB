@@ -299,22 +299,28 @@ body {
    Logo
    ======================================== */
 
-.logo-mark {
+.logo {
     position: absolute;
     top: 20px;
     left: 24px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--text-secondary);
-    opacity: 0.6;
-    z-index: 5;
-    transition: var(--transition);
+    z-index: 15;
+    opacity: 0.8;
+    transition: opacity var(--transition);
 }
 
-.logo-mark:hover {
+.logo:hover {
     opacity: 1;
+}
+
+.logo img {
+    height: 32px;
+    width: auto;
+}
+
+@media (max-width: 640px) {
+    .logo img {
+        height: 24px;
+    }
 }
 
 /* ========================================
