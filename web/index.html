@@ -25,37 +25,7 @@
 <script src="js/artplayer/hls.min.js"></script>
 <script src="js/artplayer/artplayer-plugin-hls-quality.js"></script>
 <script src="js/player.js"></script>
-<script>
-    // 在文档加载完成后调整按钮位置
-    $(document).ready(function() {
-        var videoTogetherSamllIcon = $('#videoTogetherSamllIcon');
-        if (videoTogetherSamllIcon.length > 0) {
-            // 向上调整按钮位置
-            videoTogetherSamllIcon.css('top', '-20px'); // 向上调整 20px
-        }
-    });
-
-    // 监听浏览器返回事件
-    window.addEventListener('popstate', function(event) {
-        location.reload(true); // 强制重新加载页面
-    });
-
-    // 检测是否在手机端并进入全屏后检测方向并执行横屏操作
-    if (window.matchMedia("(max-width: 768px)").matches) {
-        document.addEventListener('fullscreenchange', function(event) {
-            if (document.fullscreenElement) {
-                checkAndForceLandscape();
-            }
-        });
-    }
-
-    // 检测设备方向并执行横屏操作
-    function checkAndForceLandscape() {
-        if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('landscape');
-        }
-    }
-</script>
+<script src="js/utils.js"></script>
 <script src="https://static.api.mofashi.ltd/js/zybfq/vt.user.js"></script>
 </body>
 </html>
