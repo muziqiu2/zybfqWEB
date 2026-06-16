@@ -1,56 +1,57 @@
-const demoVideoUrl = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
-
 $(document).ready(function () {
     let art = null;
     let videoUrl = '';
-    let controlsTimeout = null;
+    let controlsTimer = null;
 
-    // DOM 元素
-    const $inputOverlay = $('#inputOverlay');
-    const $controls = $('#controls');
+    // DOM
+    const $startScreen = $('#startScreen');
+    const $loader = $('#loader');
     const $urlInput = $('#urlInput');
     const $playBtn = $('#playBtn');
-    const $loadingOverlay = $('#loadingOverlay');
+    const $controls = $('#controls');
     const $playPauseBtn = $('#playPauseBtn');
-    const $progressArea = $('#progressArea');
     const $progressBar = $('#progressBar');
-    const $timeDisplay = $('#timeDisplay');
+    const $progressFill = $('#progressFill');
+    const $timeLabel = $('#timeLabel');
     const $fullscreenBtn = $('#fullscreenBtn');
     const $videoWrapper = $('#videoWrapper');
     const $iconPlay = $('.icon-play');
     const $iconPause = $('.icon-pause');
 
     // 格式化时间
-    const formatTime = (seconds) => {
-        const h = Math.floor(seconds / 3600);
-        const m = Math.floor((seconds % 3600) / 60);
-        const s = Math.floor(seconds % 60);
-        if (h > 0) {
-            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-        }
-        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    const formatTime = (s) => {
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const sec = Math.floor(s % 60);
+        const mm = m.toString().padStart(2, '0');
+        const ss = sec.toString().padStart(2, '0');
+        return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
     };
 
-    // 检测视频格式
-    const getVideoType = (url) => {
-        if (url.includes('.m3u8')) return 'm3u8';
-        return 'mp4';
+    // 检测格式
+    const getType = (url) => url.includes('.m3u8') ? 'm3u8' : 'mp4';
+
+    // 显示控制栏
+    const showControls = () => {
+        $controls.addClass('visible');
+        clearTimeout(controlsTimer);
+        controlsTimer = setTimeout(() => {
+            if (art && !art.paused) {
+                $controls.removeClass('visible');
+            }
+        }, 3000);
     };
 
-    // 播放视频
-    const playVideo = (url) => {
+    // 播放
+    const play = (url) => {
         if (!url) return;
-
         videoUrl = url;
-        $loadingOverlay.addClass('visible');
-        $inputOverlay.addClass('hidden');
+        $loader.addClass('active');
+        $startScreen.addClass('hidden');
 
-        // 销毁旧播放器
-        if (art?.id) {
-            art.destroy();
-        }
+        if (art?.id) art.destroy();
 
-        const videoType = getVideoType(url);
+        const type = getType(url);
 
         try {
             art = new Artplayer({
@@ -60,35 +61,24 @@ $(document).ready(function () {
                 loop: true,
                 playbackRate: true,
                 fullscreen: true,
-                fullscreenWeb: false,
-                theme: '#e63946',
+                theme: '#64ffda',
                 setting: false,
                 pip: false,
                 screenshot: false,
                 miniProgressBar: false,
-                icons: {
-                    loading: '<div class="loading-spinner"></div>'
-                },
-                customType: videoType === 'm3u8' ? {
-                    m3u8: playM3u8,
-                } : {},
-                plugins: videoType === 'm3u8' ? [
+                customType: type === 'm3u8' ? { m3u8: playM3u8 } : {},
+                plugins: type === 'm3u8' ? [
                     artplayerPluginControl(),
-                    artplayerPluginHlsQuality({
-                        control: true,
-                        setting: false,
-                    })
+                    artplayerPluginHlsQuality({ control: true, setting: false })
                 ] : [],
             });
 
-            // 播放器就绪
             art.on('ready', () => {
-                $loadingOverlay.removeClass('visible');
+                $loader.removeClass('active');
                 art.play();
                 showControls();
             });
 
-            // 显示控制栏
             art.on('play', () => {
                 $iconPlay.hide();
                 $iconPause.show();
@@ -97,133 +87,103 @@ $(document).ready(function () {
             art.on('pause', () => {
                 $iconPlay.show();
                 $iconPause.hide();
+                $controls.addClass('visible');
             });
 
-            // 更新进度条
-            art.on('video:progress', (rect) => {
-                const percent = (rect.currentTime / rect.duration) * 100;
-                $progressBar.css('width', `${percent}%`);
-                $timeDisplay.text(`${formatTime(rect.currentTime)} / ${formatTime(rect.duration)}`);
+            art.on('video:timeupdate', (v) => {
+                const pct = (v.currentTime / v.duration) * 100;
+                $progressFill.css('width', `${pct}%`);
+                $timeLabel.text(`${formatTime(v.currentTime)} / ${formatTime(v.duration)}`);
             });
 
-            // 播放结束
             art.on('ended', () => {
                 $iconPlay.show();
                 $iconPause.hide();
+                $controls.addClass('visible');
             });
 
-            // 错误处理
             art.on('error', () => {
-                $loadingOverlay.removeClass('visible');
-                layer.msg('视频加载失败，请检查链接是否有效');
+                $loader.removeClass('active');
+                layer.msg('视频加载失败');
             });
 
         } catch (e) {
-            console.error('播放器错误:', e);
-            $loadingOverlay.removeClass('visible');
+            console.error(e);
+            $loader.removeClass('active');
         }
     };
 
-    // M3U8 播放处理
-    const playM3u8 = (video, url, artplayer) => {
+    // M3U8
+    const playM3u8 = (video, url, ap) => {
         if (Hls.isSupported()) {
             const hls = new Hls();
-            artplayer.hls = hls;
+            ap.hls = hls;
             hls.loadSource(url);
             hls.attachMedia(video);
-            artplayer.once('destroy', () => hls.destroy());
+            ap.once('destroy', () => hls.destroy());
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = url;
         } else {
-            artplayer.notice.show = '不支持的播放格式';
+            ap.notice.show = '不支持的格式';
         }
     };
 
-    // 显示控制栏
-    const showControls = () => {
-        $controls.addClass('visible');
-        clearTimeout(controlsTimeout);
-        controlsTimeout = setTimeout(() => {
-            if (art && !art.paused) {
-                $controls.removeClass('visible');
-            }
-        }, 3000);
-    };
-
-    // 播放按钮点击
+    // 播放按钮
     $playBtn.on('click', () => {
         const url = $urlInput.val().trim();
         if (!url) {
             layer.msg('请输入视频链接');
             return;
         }
-        playVideo(url);
-        window.location.hash = 'video_url=' + encodeURIComponent(url);
+        play(url);
+        window.location.hash = 'v=' + encodeURIComponent(url);
     });
 
-    // 输入框回车
+    // 回车
     $urlInput.on('keypress', (e) => {
-        if (e.key === 'Enter') {
-            $playBtn.click();
-        }
+        if (e.key === 'Enter') $playBtn.click();
     });
 
-    // 视频区域点击 - 显示/隐藏控制栏
+    // 点击视频区域
     $videoWrapper.on('click', () => {
-        if (art) {
-            showControls();
-            if (art.paused) {
-                art.play();
-            }
-        }
-    });
-
-    // 进度条点击跳转
-    $progressArea.on('click', (e) => {
         if (!art) return;
-        const rect = $progressArea[0].getBoundingClientRect();
-        const percent = (e.clientX - rect.left) / rect.width;
-        const duration = art.duration;
-        if (duration) {
-            art.seek = duration * percent;
-        }
+        showControls();
+        art.paused ? art.play() : art.pause();
     });
 
-    // 播放/暂停按钮
+    // 进度条点击
+    $progressBar.on('click', (e) => {
+        if (!art) return;
+        const rect = $progressBar[0].getBoundingClientRect();
+        const pct = (e.clientX - rect.left) / rect.width;
+        art.seek = art.duration * pct;
+    });
+
+    // 播放/暂停
     $playPauseBtn.on('click', () => {
         if (!art) return;
-        if (art.paused) {
-            art.play();
-        } else {
-            art.pause();
-        }
+        art.paused ? art.play() : art.pause();
         showControls();
     });
 
-    // 全屏按钮
+    // 全屏
     $fullscreenBtn.on('click', () => {
-        if (!art) return;
-        art.fullscreen = !art.fullscreen;
+        if (art) art.fullscreen = !art.fullscreen;
         showControls();
     });
 
-    // 鼠标移动显示控制栏
+    // 移动
     $videoWrapper.on('mousemove', () => {
-        if (art && !art.paused) {
-            showControls();
-        }
+        if (art && !art.paused) showControls();
     });
 
-    // 从 URL hash 读取视频
+    // 读取 hash
     const hash = window.location.hash;
-    if (hash.startsWith('#video_url=')) {
-        const url = decodeURIComponent(hash.substr('#video_url='.length));
+    if (hash.startsWith('#v=')) {
+        const url = decodeURIComponent(hash.slice(3));
         $urlInput.val(url);
-        playVideo(url);
+        play(url);
     }
 
-    // 监听浏览器返回
-    window.addEventListener('popstate', () => {
-        location.reload(true);
-    });
+    window.addEventListener('popstate', () => location.reload(true));
 });

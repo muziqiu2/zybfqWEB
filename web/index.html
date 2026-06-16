@@ -9,37 +9,40 @@
 </head>
 <body>
     <div class="player-container">
+        <!-- Logo -->
         <div class="logo">
-            <img src="./images/logo.4d5c9706.png" alt="播放器Logo">
+            <img src="./images/logo.4d5c9706.png" alt="自由播放器">
         </div>
 
         <!-- 视频区域 -->
         <div class="video-wrapper" id="videoWrapper">
             <div class="artplayer" id="player"></div>
-            
-            <!-- 加载状态 -->
-            <div class="loading-overlay" id="loadingOverlay">
-                <div class="loading-spinner"></div>
-            </div>
         </div>
 
-        <!-- 初始输入界面 -->
-        <div class="input-overlay" id="inputOverlay">
-            <div class="brand">自由<span>播放</span>器</div>
-            <div class="input-group">
-                <div class="input-wrapper">
+        <!-- 加载中 -->
+        <div class="loader" id="loader">
+            <div class="loader-ring"></div>
+        </div>
+
+        <!-- 初始界面 -->
+        <div class="start-screen" id="startScreen">
+            <div class="start-card">
+                <h1>自由<span>播放</span>器</h1>
+                <p>简洁的在线视频播放工具</p>
+                <div class="input-group">
                     <input 
                         type="text" 
+                        class="input-field" 
                         id="urlInput" 
-                        placeholder="输入视频链接" 
+                        placeholder="粘贴视频链接" 
                         autocomplete="off"
                     />
-                    <button class="play-btn" id="playBtn" title="播放">
+                    <button class="play-button" id="playBtn" title="播放">
                         <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                     </button>
                 </div>
+                <span class="format-hint">支持 m3u8、mp4 等格式</span>
             </div>
-            <p class="hint">支持 m3u8、mp4 等主流格式</p>
         </div>
 
         <!-- 控制栏 -->
@@ -48,10 +51,12 @@
                 <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 <svg class="icon-pause" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
             </button>
-            <div class="progress-area" id="progressArea">
-                <div class="progress-bar" id="progressBar"></div>
+            <div class="progress-wrap">
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <span class="time-label" id="timeLabel">00:00 / 00:00</span>
             </div>
-            <span class="time" id="timeDisplay">00:00 / 00:00</span>
             <button class="ctrl-btn fullscreen" id="fullscreenBtn" title="全屏">
                 <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
             </button>
