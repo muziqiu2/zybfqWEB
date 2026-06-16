@@ -82,6 +82,10 @@ $(document).ready(function () {
                     art.play();
                 }, 100);
             });
+            art.on('error', (err) => {
+                console.error('视频加载失败:', err);
+                layer.msg('视频加载失败，请检查地址是否正确');
+            });
         } catch (e) {
             console.error('发生异常:', e);
         }
