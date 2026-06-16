@@ -24,6 +24,7 @@ $(document).ready(function () {
             art.destroy();
         }
         try {
+            const videoType = getVideoType(videoUrl);
             art = new Artplayer({
                 container: '.player',
                 url: videoUrl,
@@ -63,10 +64,10 @@ $(document).ready(function () {
                         return !item.switch;
                     },
                 }],
-                customType: {
+                customType: videoType === 'm3u8' ? {
                     m3u8: playM3u8,
-                },
-                plugins: [
+                } : {},
+                plugins: videoType === 'm3u8' ? [
                     artplayerPluginControl(),
                     artplayerPluginHlsQuality({
                         control: true,
@@ -74,7 +75,7 @@ $(document).ready(function () {
                         title: 'Quality',
                         auto: 'Auto',
                     })
-                ],
+                ] : [],
             });
             art.on('ready', () => {
                 setTimeout(() => {
@@ -105,6 +106,13 @@ $(document).ready(function () {
         } else {
             artplayer.notice.show = '不支持的播放格式: m3u8';
         }
+    };
+
+    // 检测视频格式
+    const getVideoType = (url) => {
+        if (url.includes('.m3u8')) return 'm3u8';
+        if (url.includes('.mp4')) return 'mp4';
+        return 'auto';
     };
 
     // 表单提交处理
