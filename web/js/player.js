@@ -3,67 +3,72 @@ const demoVideoUrl = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
 $(document).ready(function () {
     let art = null;
     let videoUrl = '';
+    let controlsTimeout = null;
 
-    const playVideo = (videoUrl) => {
-        $('.main').removeClass('ready');
-        if (videoUrl === '') {
-            videoUrl = demoVideoUrl;
-            layer.open({
-                icon: 5,
-                time: 5 * 1000,
-                title: '错误提示',
-                content: '请输入m3u8视频地址，当前播放为演示视频。',
-                btn: ['知道了']
-            });
+    // DOM 元素
+    const $inputOverlay = $('#inputOverlay');
+    const $controls = $('#controls');
+    const $urlInput = $('#urlInput');
+    const $playBtn = $('#playBtn');
+    const $loadingOverlay = $('#loadingOverlay');
+    const $playPauseBtn = $('#playPauseBtn');
+    const $progressArea = $('#progressArea');
+    const $progressBar = $('#progressBar');
+    const $timeDisplay = $('#timeDisplay');
+    const $fullscreenBtn = $('#fullscreenBtn');
+    const $videoWrapper = $('#videoWrapper');
+    const $iconPlay = $('.icon-play');
+    const $iconPause = $('.icon-pause');
+
+    // 格式化时间
+    const formatTime = (seconds) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        if (h > 0) {
+            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         }
-        if (videoUrl) {
-            $('.form-control>.url').val(videoUrl);
-            window.location.hash = 'video_url=' + encodeURIComponent(videoUrl);
-        }
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
+
+    // 检测视频格式
+    const getVideoType = (url) => {
+        if (url.includes('.m3u8')) return 'm3u8';
+        return 'mp4';
+    };
+
+    // 播放视频
+    const playVideo = (url) => {
+        if (!url) return;
+
+        videoUrl = url;
+        $loadingOverlay.addClass('visible');
+        $inputOverlay.addClass('hidden');
+
+        // 销毁旧播放器
         if (art?.id) {
             art.destroy();
         }
+
+        const videoType = getVideoType(url);
+
         try {
-            const videoType = getVideoType(videoUrl);
             art = new Artplayer({
-                container: '.player',
-                url: videoUrl,
+                container: '#player',
+                url: url,
                 title: '自由播放器',
                 loop: true,
-                flip: false,
                 playbackRate: true,
-                aspectRatio: false,
-                screenshot: false,
-                setting: true,
-                pip: true,
-                fullscreenWeb: false,
                 fullscreen: true,
-                subtitleOffset: true,
-                miniProgressBar: true,
-                airplay: true,
-                theme: '#23ade5',
-                thumbnails: {},
-                subtitle: {},
-                highlight: [{
-                    time: 15,
-                    text: '欢迎使用自由播放器',
-                }],
+                fullscreenWeb: false,
+                theme: '#e63946',
+                setting: false,
+                pip: false,
+                screenshot: false,
+                miniProgressBar: false,
                 icons: {
-                    loading: '<img src="images/loading.gif" width="100px" title="视频加载中..." />'
+                    loading: '<div class="loading-spinner"></div>'
                 },
-                settings: [{
-                    html: '控件栏浮动',
-                    icon: '<img width="22" height="22" src="images/state.svg">',
-                    tooltip: '开启',
-                    switch: true,
-                    onSwitch: async (item) => {
-                        item.tooltip = item.switch ? '关闭' : '开启';
-                        art.plugins.artplayerPluginControl.enable = !item.switch;
-                        await Artplayer.utils.sleep(300);
-                        art.setting.updateStyle();
-                        return !item.switch;
-                    },
-                }],
                 customType: videoType === 'm3u8' ? {
                     m3u8: playM3u8,
                 } : {},
@@ -72,71 +77,153 @@ $(document).ready(function () {
                     artplayerPluginHlsQuality({
                         control: true,
                         setting: false,
-                        title: 'Quality',
-                        auto: 'Auto',
                     })
                 ] : [],
             });
+
+            // 播放器就绪
             art.on('ready', () => {
-                setTimeout(() => {
-                    layer.msg('开始播放');
-                    art.play();
-                }, 100);
+                $loadingOverlay.removeClass('visible');
+                art.play();
+                showControls();
             });
-            art.on('error', (err) => {
-                console.error('视频加载失败:', err);
-                layer.msg('视频加载失败，请检查地址是否正确');
+
+            // 显示控制栏
+            art.on('play', () => {
+                $iconPlay.hide();
+                $iconPause.show();
             });
+
+            art.on('pause', () => {
+                $iconPlay.show();
+                $iconPause.hide();
+            });
+
+            // 更新进度条
+            art.on('video:progress', (rect) => {
+                const percent = (rect.currentTime / rect.duration) * 100;
+                $progressBar.css('width', `${percent}%`);
+                $timeDisplay.text(`${formatTime(rect.currentTime)} / ${formatTime(rect.duration)}`);
+            });
+
+            // 播放结束
+            art.on('ended', () => {
+                $iconPlay.show();
+                $iconPause.hide();
+            });
+
+            // 错误处理
+            art.on('error', () => {
+                $loadingOverlay.removeClass('visible');
+                layer.msg('视频加载失败，请检查链接是否有效');
+            });
+
         } catch (e) {
-            console.error('发生异常:', e);
+            console.error('播放器错误:', e);
+            $loadingOverlay.removeClass('visible');
         }
     };
 
+    // M3U8 播放处理
     const playM3u8 = (video, url, artplayer) => {
         if (Hls.isSupported()) {
             const hls = new Hls();
             artplayer.hls = hls;
             hls.loadSource(url);
             hls.attachMedia(video);
-            artplayer.once('url', () => hls.destroy());
             artplayer.once('destroy', () => hls.destroy());
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            artplayer.switchUrl(url);
-            artplayer.seek = 0;
+            video.src = url;
         } else {
-            artplayer.notice.show = '不支持的播放格式: m3u8';
+            artplayer.notice.show = '不支持的播放格式';
         }
     };
 
-    // 检测视频格式
-    const getVideoType = (url) => {
-        if (url.includes('.m3u8')) return 'm3u8';
-        if (url.includes('.mp4')) return 'mp4';
-        return 'auto';
+    // 显示控制栏
+    const showControls = () => {
+        $controls.addClass('visible');
+        clearTimeout(controlsTimeout);
+        controlsTimeout = setTimeout(() => {
+            if (art && !art.paused) {
+                $controls.removeClass('visible');
+            }
+        }, 3000);
     };
 
-    // 表单提交处理
-    $('.form-control').on('submit', (e) => {
-        e.preventDefault();
-        const tempVideoUrl = $('.form-control>.url').val();
-        if (tempVideoUrl === '') {
-            layer.msg('请输入视频网址');
-            return false;
+    // 播放按钮点击
+    $playBtn.on('click', () => {
+        const url = $urlInput.val().trim();
+        if (!url) {
+            layer.msg('请输入视频链接');
+            return;
         }
-        if (videoUrl === tempVideoUrl) {
-            layer.msg('视频网址没有改变');
-            art.play();
-            return false;
-        }
-        layer.msg('播放视频');
-        videoUrl = tempVideoUrl;
-        playVideo(videoUrl);
+        playVideo(url);
+        window.location.hash = 'video_url=' + encodeURIComponent(url);
     });
 
-    // 从 URL hash 读取视频地址
+    // 输入框回车
+    $urlInput.on('keypress', (e) => {
+        if (e.key === 'Enter') {
+            $playBtn.click();
+        }
+    });
+
+    // 视频区域点击 - 显示/隐藏控制栏
+    $videoWrapper.on('click', () => {
+        if (art) {
+            showControls();
+            if (art.paused) {
+                art.play();
+            }
+        }
+    });
+
+    // 进度条点击跳转
+    $progressArea.on('click', (e) => {
+        if (!art) return;
+        const rect = $progressArea[0].getBoundingClientRect();
+        const percent = (e.clientX - rect.left) / rect.width;
+        const duration = art.duration;
+        if (duration) {
+            art.seek = duration * percent;
+        }
+    });
+
+    // 播放/暂停按钮
+    $playPauseBtn.on('click', () => {
+        if (!art) return;
+        if (art.paused) {
+            art.play();
+        } else {
+            art.pause();
+        }
+        showControls();
+    });
+
+    // 全屏按钮
+    $fullscreenBtn.on('click', () => {
+        if (!art) return;
+        art.fullscreen = !art.fullscreen;
+        showControls();
+    });
+
+    // 鼠标移动显示控制栏
+    $videoWrapper.on('mousemove', () => {
+        if (art && !art.paused) {
+            showControls();
+        }
+    });
+
+    // 从 URL hash 读取视频
     const hash = window.location.hash;
     if (hash.startsWith('#video_url=')) {
-        const tempVideoUrl = decodeURIComponent(hash.substr('#video_url='.length));
-        playVideo(tempVideoUrl);
+        const url = decodeURIComponent(hash.substr('#video_url='.length));
+        $urlInput.val(url);
+        playVideo(url);
     }
+
+    // 监听浏览器返回
+    window.addEventListener('popstate', () => {
+        location.reload(true);
+    });
 });

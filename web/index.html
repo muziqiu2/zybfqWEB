@@ -8,24 +8,61 @@
     <link rel="stylesheet" href="css/player.css" />
 </head>
 <body>
-<div class="main ready">
-    <div class="player">loading...</div>
-    <div class="logo">
-        <img src="./images/logo.4d5c9706.png" alt="播放器Logo">
+    <div class="player-container">
+        <!-- Logo -->
+        <div class="logo-mark">自由播放器</div>
+
+        <!-- 视频区域 -->
+        <div class="video-wrapper" id="videoWrapper">
+            <div class="artplayer" id="player"></div>
+            
+            <!-- 加载状态 -->
+            <div class="loading-overlay" id="loadingOverlay">
+                <div class="loading-spinner"></div>
+            </div>
+        </div>
+
+        <!-- 初始输入界面 -->
+        <div class="input-overlay" id="inputOverlay">
+            <div class="brand">自由<span>播放</span>器</div>
+            <div class="input-group">
+                <div class="input-wrapper">
+                    <input 
+                        type="text" 
+                        id="urlInput" 
+                        placeholder="输入视频链接" 
+                        autocomplete="off"
+                    />
+                    <button class="play-btn" id="playBtn" title="播放">
+                        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                </div>
+            </div>
+            <p class="hint">支持 m3u8、mp4 等主流格式</p>
+        </div>
+
+        <!-- 控制栏 -->
+        <div class="controls" id="controls">
+            <button class="ctrl-btn" id="playPauseBtn" title="播放/暂停">
+                <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                <svg class="icon-pause" viewBox="0 0 24 24" style="display:none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+            </button>
+            <div class="progress-area" id="progressArea">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <span class="time" id="timeDisplay">00:00 / 00:00</span>
+            <button class="ctrl-btn fullscreen" id="fullscreenBtn" title="全屏">
+                <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+            </button>
+        </div>
     </div>
-    <form class="form-control">
-        <input class="url" type="text" placeholder="请输入视频网址" value="" />
-        <input class="play" type="submit" value="" title="点击播放" />
-    </form>
-</div>
-<script src="js/jquery.min.js"></script>
-<script src="js/layer/layer.min.js"></script>
-<script src="js/artplayer/artplayer.js"></script>
-<script src="js/artplayer/artplayer-plugin-control.js"></script>
-<script src="js/artplayer/hls.min.js"></script>
-<script src="js/artplayer/artplayer-plugin-hls-quality.js"></script>
-<script src="js/player.js"></script>
-<script src="js/utils.js"></script>
-<script src="https://static.api.mofashi.ltd/js/zybfq/vt.user.js"></script>
+
+    <script src="js/jquery.min.js"></script>
+    <script src="js/artplayer/artplayer.js"></script>
+    <script src="js/artplayer/artplayer-plugin-control.js"></script>
+    <script src="js/artplayer/hls.min.js"></script>
+    <script src="js/artplayer/artplayer-plugin-hls-quality.js"></script>
+    <script src="js/player.js"></script>
+    <script src="https://static.api.mofashi.ltd/js/zybfq/vt.user.js"></script>
 </body>
 </html>
