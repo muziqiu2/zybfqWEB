@@ -1,61 +1,59 @@
-<!DOCTYPE html>
+<!DOCTYPE HTML>
 <html lang="zh-CN">
-<head>
-    <title>自由播放器</title>
-    <meta name="referrer" content="never">
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="css/player.css" />
-</head>
-<body>
-<div class="main ready">
-    <div class="player">loading...</div>
-    <div class="logo">
-        <img src="./images/logo.4d5c9706.png" alt="播放器Logo">
-    </div>
-    <form class="form-control">
-        <input class="url" type="text" placeholder="请输入视频网址" value="" />
-        <input class="play" type="submit" value="" title="点击播放" />
-    </form>
-</div>
-<script src="js/jquery.min.js"></script>
-<script src="js/layer/layer.min.js"></script>
-<script src="js/artplayer/artplayer.js"></script>
-<script src="js/artplayer/artplayer-plugin-control.js"></script>
-<script src="js/artplayer/hls.min.js"></script>
-<script src="js/artplayer/artplayer-plugin-hls-quality.js"></script>
-<script src="js/player.js"></script>
-<script>
-    // 在文档加载完成后调整按钮位置
-    $(document).ready(function() {
-        var videoTogetherSamllIcon = $('#videoTogetherSamllIcon');
-        if (videoTogetherSamllIcon.length > 0) {
-            // 向上调整按钮位置
-            videoTogetherSamllIcon.css('top', '-20px'); // 向上调整 20px
-        }
-    });
+	<script charset="UTF-8" id="LA_COLLECT" src="//sdk.51.la/js-sdk-pro.min.js"></script>
+	<script>LA.init({id:"K9FlZeADveWJTUnc",ck:"K9FlZeADveWJTUnc"})</script>
+	<head>
+		<title>自由播放器 - 已停止维护</title>
+		<meta name="description" content="自由播放器已停止维护更新，请使用 SyncTV 获得更好的异地恋观影体验。">
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="../assets/css/main.css" />
+		<noscript><link rel="stylesheet" href="../assets/css/noscript.css" /></noscript>
+		<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.10.0/font/bootstrap-icons.css">
+	</head>
+	<body class="is-preload">
 
-    // 监听浏览器返回事件
-    window.addEventListener('popstate', function(event) {
-        location.reload(true); // 强制重新加载页面
-    });
+		<!-- 页眉 -->
+			<header id="header" style="padding-top: 2em;">
+				<div class="content">
+					<h1><a>自由播放器</a></h1>
+					<p style="font-size: 1.3em; color: #ff6b6b;">
+						<i class="bi bi-exclamation-triangle"></i> 
+						已停止维护更新
+					</p>
+					<p style="font-size: 1em; line-height: 1.8;">
+						感谢大家一直以来对自由播放器的支持与陪伴。<br />
+						由于维护精力有限，自由播放器已停止开发与更新。<br />
+						为了获得更好的观影体验，请移步至全新升级的
+					</p>
+					<ul class="actions" style="margin-top: 1.5em;">
+						<li>
+							<a href="https://synctv.mofashi.ltd" class="button primary icon solid fa-external-link-alt">
+								前往 SyncTV
+							</a>
+						</li>
+					</ul>
+					<p style="font-size: 0.9em; color: rgba(255,255,255,0.6); margin-top: 2em;">
+						<i class="bi bi-arrow-up-circle"></i> 点击上方按钮立即跳转
+					</p>
+				</div>
+				<div class="image phone" style="display: flex; align-items: center; justify-content: center;">
+					<div class="inner" style="background: rgba(255,255,255,0.05); border-radius: 12px; padding: 2em; text-align: center;">
+						<i class="bi bi-play-btn" style="font-size: 6em; color: rgba(255,255,255,0.2);"></i>
+						<div style="margin-top: 1em; color: rgba(255,255,255,0.35); font-size: 0.9em;">
+							SyncTV<br />
+							全新观影体验
+						</div>
+					</div>
+				</div>
+			</header>
 
-    // 检测是否在手机端并进入全屏后检测方向并执行横屏操作
-    if (window.matchMedia("(max-width: 768px)").matches) {
-        document.addEventListener('fullscreenchange', function(event) {
-            if (document.fullscreenElement) {
-                checkAndForceLandscape();
-            }
-        });
-    }
+		<!-- Scripts -->
+			<script src="../assets/js/jquery.min.js"></script>
+			<script src="../assets/js/browser.min.js"></script>
+			<script src="../assets/js/breakpoints.min.js"></script>
+			<script src="../assets/js/util.js"></script>
+			<script src="../assets/js/main.js"></script>
 
-    // 检测设备方向并执行横屏操作
-    function checkAndForceLandscape() {
-        if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('landscape');
-        }
-    }
-</script>
-<script src="https://static.api.mofashi.ltd/js/zybfq/vt.user.js"></script>
-</body>
+	</body>
 </html>
