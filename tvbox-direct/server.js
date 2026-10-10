@@ -16,6 +16,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUB = path.join(__dirname, 'public');
@@ -81,7 +82,7 @@ function buildUrl(api, params) {
 
 /* ---------------- 配置解析 ---------------- */
 
-const KIND_NAME = { cms: 'CMS', t3: 'T3', t4: 'T4', js: 'JS', jar: 'SPIDER' };
+const KIND_NAME = { cms: 'CMS', t3: 'T3', t4: 'T4', js: 'JS', jar: 'SPIDER', bili: 'B站' };
 
 function normSite(s, i) {
   const api = typeof s.api === 'string' ? s.api.trim() : '';
@@ -95,6 +96,7 @@ function normSite(s, i) {
     // js:/ .js 结尾的是 JS 脚本爬虫（可能在 http 地址上），优先于 T3 判断
     const base = api.split(';')[0];
     if (/^js:/i.test(base) || /\.js(\?|#|$)/i.test(base)) kind = 'js';
+    else if (/^csp_Bili/i.test(api)) { kind = 'bili'; supported = true; } // B 站官方 API 解析器
     else if (/^https?:\/\//i.test(api)) { kind = 't3'; supported = true; }
   } else if (type === 4) {
     kind = 't4';
@@ -342,6 +344,121 @@ async function t3Detail(site, id) {
   };
 }
 
+/* ---------------- B 站源（csp_Bili，官方 API） ----------------
+ * 搜索：/x/web-interface/wbi/search/type（wbi 签名 + buvid cookie）
+ * 详情：/x/web-interface/view（取 cid 与分 P）
+ * 直链：/x/player/playurl platform=html5 → mp4 直链（需 Referer）
+ */
+
+const WBI_TAB = [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52];
+
+const biliState = { b3: '', b4: '', wbi: null, expire: 0 };
+
+function biliHeaders(extra) {
+  return Object.assign({
+    'User-Agent': UA,
+    'Referer': 'https://www.bilibili.com/',
+    'Origin': 'https://www.bilibili.com'
+  }, extra || {});
+}
+
+async function biliBootstrap() {
+  if (biliState.wbi && Date.now() < biliState.expire) return biliState;
+  const spi = await (await fetchRes('https://api.bilibili.com/x/frontend/finger/spi', { headers: biliHeaders() })).json();
+  biliState.b3 = (spi.data && spi.data.b_3) || '';
+  biliState.b4 = (spi.data && spi.data.b_4) || '';
+  const cookie = 'buvid3=' + biliState.b3 + '; buvid4=' + biliState.b4;
+  const nav = await (await fetchRes('https://api.bilibili.com/x/web-interface/nav', { headers: biliHeaders({ Cookie: cookie }) })).json();
+  const img = nav.data && nav.data.wbi_img ? nav.data.wbi_img : {};
+  const imgKey = String(img.img_url || '').split('/').pop().split('.')[0];
+  const subKey = String(img.sub_url || '').split('/').pop().split('.')[0];
+  if (!imgKey || !subKey) throw new Error('B站引导失败：拿不到 wbi 密钥');
+  biliState.wbi = imgKey + subKey;
+  biliState.expire = Date.now() + 12 * 3600 * 1000;
+  return biliState;
+}
+
+function wbiSign(params, wbiKey) {
+  const mixinKey = WBI_TAB.map((i) => wbiKey[i]).join('').slice(0, 32);
+  const all = Object.assign({}, params, { wts: Math.floor(Date.now() / 1000) });
+  const q = Object.keys(all).sort()
+    .map((k) => k + '=' + encodeURIComponent(String(all[k]).replace(/[!'()*]/g, '')))
+    .filter((kv) => kv.slice(kv.indexOf('=') + 1) !== '')
+    .join('&');
+  return q + '&w_rid=' + crypto.createHash('md5').update(q + mixinKey).digest('hex');
+}
+
+function biliCookie() {
+  return 'buvid3=' + biliState.b3 + '; buvid4=' + biliState.b4;
+}
+
+function biliClean(t) {
+  return String(t || '').replace(/<[^>]+>/g, '').trim();
+}
+
+function biliDur(d) {
+  if (typeof d === 'number') {
+    const m = Math.floor(d / 60), s = d % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+  return String(d || '');
+}
+
+async function biliSearch(site, wd) {
+  await biliBootstrap();
+  const qs = wbiSign({ search_type: 'video', keyword: wd, page: 1 }, biliState.wbi);
+  const r = await (await fetchRes('https://api.bilibili.com/x/web-interface/wbi/search/type?' + qs, { headers: biliHeaders({ Cookie: biliCookie() }) })).json();
+  if (r.code !== 0) throw new Error('B站搜索失败: ' + (r.message || r.code));
+  const result = (r.data && r.data.result) || [];
+  return result.filter((x) => x.type === 'video').slice(0, 30).map((v) => ({
+    id: String(v.bvid || ''),
+    name: biliClean(v.title),
+    year: '',
+    remarks: [biliDur(v.duration), v.author].filter(Boolean).join(' · ')
+  })).filter((x) => x.id && x.name);
+}
+
+async function biliDetail(site, vid) {
+  const r = await (await fetchRes('https://api.bilibili.com/x/web-interface/view?bvid=' + encodeURIComponent(vid), { headers: biliHeaders() })).json();
+  if (r.code !== 0) throw new Error('B站详情失败: ' + (r.message || r.code));
+  const v = r.data;
+  const pages = Array.isArray(v.pages) && v.pages.length ? v.pages : [{ page: 1, part: '正片', cid: v.cid }];
+  const multi = pages.length > 1;
+  return {
+    name: v.title,
+    year: v.pubdate ? new Date(v.pubdate * 1000).getFullYear() + '' : '',
+    remarks: 'UP: ' + (v.owner ? v.owner.name : ''),
+    pic: v.pic || '',
+    froms: [{
+      flag: 'B站',
+      episodes: pages.map((p) => ({
+        name: multi ? 'P' + p.page + ' ' + (p.part || '') : '正片',
+        url: v.bvid + '@' + p.cid
+      }))
+    }]
+  };
+}
+
+async function biliPlay(site, epUrl) {
+  await biliBootstrap();
+  const i = String(epUrl).indexOf('@');
+  if (i < 0) throw new Error('无效的 B 站集数标识');
+  const bvid = epUrl.slice(0, i);
+  const cid = epUrl.slice(i + 1);
+  const u = 'https://api.bilibili.com/x/player/playurl?bvid=' + encodeURIComponent(bvid) +
+    '&cid=' + encodeURIComponent(cid) + '&platform=html5&high_quality=1&qn=64';
+  const r = await (await fetchRes(u, { headers: biliHeaders({ Cookie: biliCookie() }) })).json();
+  if (r.code !== 0) throw new Error('B站取直链失败: ' + (r.message || r.code));
+  const durl = (r.data && r.data.durl || [])[0];
+  if (!durl || !durl.url) throw new Error('B站未返回 mp4 直链');
+  const qd = ((r.data.accept_description || [])[r.data.quality] || '') || (r.data.quality === 16 ? '流畅 360P' : r.data.quality === 32 ? '清晰 480P' : r.data.quality === 64 ? '高清 720P' : '清晰度 ' + r.data.quality);
+  return {
+    url: durl.url,
+    header: { Referer: 'https://www.bilibili.com/', 'User-Agent': UA },
+    notes: ['B站官方 API 直链 · ' + qd + ' · 链接有时效，尽快使用']
+  };
+}
+
 /* ---------------- m3u 文本 / 直链解析 ---------------- */
 
 // m3u / m3u8 内相对地址转绝对（不做代理重写，仅保证复制出去的链接可直接用）
@@ -470,7 +587,9 @@ async function api(req, res, u) {
     const wd = (q.get('wd') || '').trim().slice(0, 60);
     if (!wd) throw new Error('参数不完整');
     if (!site.supported) throw new Error('该源类型暂不支持（' + KIND_NAME[site.kind] + ' 源需要爬虫运行时）');
-    const list = site.kind === 't3' ? await t3Search(site, wd) : await cmsSearch(site, wd);
+    const list = site.kind === 'bili' ? await biliSearch(site, wd)
+      : site.kind === 't3' ? await t3Search(site, wd)
+        : await cmsSearch(site, wd);
     return json(res, { ok: true, list });
   }
 
@@ -479,7 +598,9 @@ async function api(req, res, u) {
     const vid = (q.get('vid') || '').trim();
     if (!vid) throw new Error('参数不完整');
     if (!site.supported) throw new Error('该源类型暂不支持（' + KIND_NAME[site.kind] + ' 源需要爬虫运行时）');
-    const data = site.kind === 't3' ? await t3Detail(site, vid) : await cmsDetail(site, vid);
+    const data = site.kind === 'bili' ? await biliDetail(site, vid)
+      : site.kind === 't3' ? await t3Detail(site, vid)
+        : await cmsDetail(site, vid);
     return json(res, { ok: true, ...data });
   }
 
@@ -489,7 +610,7 @@ async function api(req, res, u) {
     const url = q.get('url') || '';
     if (!url) throw new Error('参数不完整');
     if (!site.supported) throw new Error('该源类型暂不支持（' + KIND_NAME[site.kind] + ' 源需要爬虫运行时）');
-    const r = await resolveDirect(site, flag, url);
+    const r = site.kind === 'bili' ? await biliPlay(site, url) : await resolveDirect(site, flag, url);
     return json(res, { ok: true, ...r });
   }
 

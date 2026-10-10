@@ -19,7 +19,7 @@ const state = {
 };
 
 const DEFAULT_CFG = 'https://jijietvbox.lol/jieluntan-fty.json';
-const KIND_CN = { cms: '', t3: '', t4: 'T4', js: 'JS', jar: '爬虫' };
+const KIND_CN = { cms: '', t3: '', t4: 'T4', js: 'JS', jar: '爬虫', bili: '' };
 
 /* ---------------- 基础工具 ---------------- */
 
@@ -61,6 +61,7 @@ function esc(s) {
 
 /* 源徽标文案 */
 function siteBadge(s) {
+  if (s.kind === 'bili') return 'B站';
   if (s.kind === 'cms') return s.type === 1 ? 'XML' : 'JSON';
   if (s.kind === 't3') return 'T3';
   if (s.kind === 't4') return 'T4';
