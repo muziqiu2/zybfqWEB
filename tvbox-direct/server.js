@@ -398,30 +398,41 @@ async function resolveDirect(site, flag, epUrl) {
   const looksM3u8 = /\.m3u8?(\?|#|$)/i.test(target);
   const looksMedia = MEDIA_RE.test(target);
 
-  // m3u8（或无法从扩展名判断的 T3 链接）：预检内容
-  if (looksM3u8 || (!looksMedia && site.kind === 't3')) {
+  // 非二进制媒体链接（m3u8 / 无扩展名 / T3）：预检内容，自动跟随重定向与主清单
+  if (!looksMedia || looksM3u8) {
     try {
       const { text, finalUrl, headers } = await fetchText(target);
-      if (/mpegurl/i.test(headers.get('content-type') || '') || text.includes('#EXTM3U')) {
+      const ct = headers.get('content-type') || '';
+      if (/mpegurl/i.test(ct) || text.includes('#EXTM3U')) {
         if (text.includes('#EXT-X-STREAM-INF')) {
           const child = text.split(/\r?\n/).map((l) => l.trim()).find((l) => l && !l.startsWith('#'));
           if (child) {
-            notes.push('已跟随 m3u8 主清单 → 媒体清单');
+            notes.push(looksM3u8 ? '已跟随 m3u8 主清单 → 媒体清单' : '链接经预检为 m3u8，已跟随到媒体清单');
             return { url: new URL(child, finalUrl).href, header, notes };
           }
         }
-        notes.push(text.includes('#EXTINF') ? '已是媒体清单直链' : 'm3u8 清单直链');
-        return { url: target, header, notes };
+        notes.push(looksM3u8 ? (text.includes('#EXTINF') ? '已是媒体清单直链' : 'm3u8 清单直链') : '链接经预检为媒体清单直链');
+        return { url: finalUrl || target, header, notes };
       }
-      if (!looksM3u8) notes.push('内容不是 m3u8，按原始链接返回');
+      if (looksM3u8) notes.push('m3u8 预检异常，返回原始链接');
+      else {
+        // 网页嗅探：share 播放页通常把真实 m3u8/mp4 内嵌在页面脚本里，直接提取
+        const mm = text.match(/["']([^"']*\.(?:m3u8|mp4|mkv)[^"']*)["']/i);
+        if (mm && mm[1] && !/^data:/i.test(mm[1])) {
+          try {
+            notes.push('已从网页中提取真实直链');
+            return { url: new URL(mm[1], finalUrl).href, header, notes };
+          } catch (_) { /* 提取失败，按网页处理 */ }
+        }
+        notes.push('内容不是媒体（' + (ct.split(';')[0] || '未知类型') + '），可能是需嗅探的网页链接');
+      }
     } catch (e) {
-      notes.push('m3u8 预检失败（' + e.message + '），返回原始链接');
+      notes.push('预检失败（' + e.message + '），返回原始链接');
     }
     return { url: target, header, notes };
   }
 
-  if (looksMedia) return { url: target, header, notes };
-  return { url: target, header, notes: [...notes, '非媒体扩展名，可能是需嗅探的网页链接'] };
+  return { url: target, header, notes };
 }
 
 /* ---------------- HTTP 服务 ---------------- */

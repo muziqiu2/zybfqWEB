@@ -1,0 +1,8 @@
+{
+  "sites": [
+    { "key": "暴风", "name": "暴风CMS", "type": 0, "api": "https://bfzyapi.com/api.php/provide/vod/", "searchable": 1 },
+    { "key": "lzzy", "name": "蓝光CMS", "type": 0, "api": "https://cj.lziapi.com/api.php/provide/vod", "searchable": 1 },
+    { "key": "dyttzy", "name": "电影天堂CMS", "type": 0, "api": "https://caiji.dyttzyapi.com/api.php/provide/vod", "searchable": 1 }
+  ],
+  "lives": []
+}

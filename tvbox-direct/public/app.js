@@ -118,6 +118,15 @@ function renderConfig(data) {
     (uns ? '<span class="err">爬虫/JS 源 ' + uns + '（不支持）</span>' : '') +
     '<span>直播 <b>' + state.lives.length + '</b></span>';
 
+  if (!ok.length && state.sites.length) {
+    // 所有源都是爬虫/JS：给出明确引导，而不是空白面板
+    $('#results').innerHTML =
+      '<div class="empty">' +
+      '该配置的 ' + state.sites.length + ' 个源全部是 TVBox 爬虫源（安卓 jar / drpy JS），网页端无法执行。<br>' +
+      '要搜索影视资源，请换用含 CMS 或 T3 源的配置 —— 点右上「<b>示例配置</b>」即可体验完整流程。' +
+      '</div>';
+  }
+
   $('#tabs').hidden = false;
   $('#tabLive').hidden = state.lives.length === 0;
   $('#tabWh').hidden = true;
@@ -194,7 +203,14 @@ async function doSearch() {
   const kw = $('#kw').value.trim();
   if (!kw) { $('#kw').focus(); return; }
   const sites = checkedSites();
-  if (!sites.length) { toast('请先在左侧勾选要搜索的源'); return; }
+  if (!sites.length) {
+    if (state.sites.length && !state.sites.some((s) => s.supported)) {
+      toast('该配置全是爬虫源，网页端搜不了；点「示例配置」体验');
+    } else {
+      toast('请先在左侧勾选要搜索的源');
+    }
+    return;
+  }
   if (state.searchCtrl) state.searchCtrl.abort();
   const ctrl = new AbortController();
   state.searchCtrl = ctrl;
@@ -482,6 +498,10 @@ function showTab(name) {
 /* ---------------- 事件绑定 ---------------- */
 
 $('#btnLoad').onclick = () => loadConfig($('#cfgUrl').value).catch((e) => toast(e.message));
+$('#btnDemo').onclick = () => {
+  $('#cfgUrl').value = location.origin + '/demo-config.json';
+  loadConfig($('#cfgUrl').value).catch((e) => toast(e.message));
+};
 $('#cfgUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#btnLoad').click(); });
 $('#btnSearch').onclick = doSearch;
 $('#kw').addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
