@@ -1,4 +1,4 @@
-/* TVBox 直链搜索 - 前端逻辑 */
+/* TVBox 直链搜索 - 前端逻辑（只取直链，不播放） */
 'use strict';
 
 const $ = (s) => document.querySelector(s);
@@ -13,11 +13,13 @@ const state = {
   liveIdx: 0,
   searchCtrl: null,
   detail: null,
+  siteI: 0,
   routeIdx: 0,
-  hls: null
+  epIdx: 0
 };
 
 const DEFAULT_CFG = 'https://jijietvbox.lol/jieluntan-fty.json';
+const KIND_CN = { cms: '', t3: '', t4: 'T4', js: 'JS', jar: '爬虫' };
 
 /* ---------------- 基础工具 ---------------- */
 
@@ -46,14 +48,6 @@ async function copyText(t) {
   }
 }
 
-function proxy(u) {
-  return '/api/stream?url=' + enc(u);
-}
-
-function siteJson(s) {
-  return enc(JSON.stringify(s));
-}
-
 async function api(path) {
   const r = await fetch(path);
   const j = await r.json();
@@ -61,7 +55,18 @@ async function api(path) {
   return j;
 }
 
-const TYPE_NAME = { 0: 'JSON', 1: 'XML', 3: 'SPIDER', 4: 'JS' };
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+/* 源徽标文案 */
+function siteBadge(s) {
+  if (s.kind === 'cms') return s.type === 1 ? 'XML' : 'JSON';
+  if (s.kind === 't3') return 'T3';
+  if (s.kind === 't4') return 'T4';
+  if (s.kind === 'js') return 'JS';
+  return 'SPIDER';
+}
 
 /* ---------------- 配置加载 ---------------- */
 
@@ -110,7 +115,7 @@ function renderConfig(data) {
   info.innerHTML =
     '<span>站点 <b>' + state.sites.length + '</b></span>' +
     '<span>可搜索 <b>' + ok.length + '</b></span>' +
-    (uns ? '<span class="err">爬虫源 ' + uns + '（不支持）</span>' : '') +
+    (uns ? '<span class="err">爬虫/JS 源 ' + uns + '（不支持）</span>' : '') +
     '<span>直播 <b>' + state.lives.length + '</b></span>';
 
   $('#tabs').hidden = false;
@@ -137,10 +142,6 @@ function renderWarehouse() {
   });
 }
 
-function esc(s) {
-  return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-}
-
 /* ---------------- 源列表 ---------------- */
 
 function renderSites() {
@@ -157,7 +158,7 @@ function renderSites() {
     row.innerHTML =
       '<input type="checkbox" ' + (s.checked !== false ? 'checked' : '') + '>' +
       '<span class="nm" title="' + esc(s.name) + '">' + esc(s.name) + '</span>' +
-      '<span class="bd ok">' + (TYPE_NAME[s.type] || s.type) + '</span>';
+      '<span class="bd ok">' + siteBadge(s) + '</span>';
     row.querySelector('input').onchange = (e) => { s.checked = e.target.checked; updateSiteStat(); };
     list.appendChild(row);
   });
@@ -169,7 +170,9 @@ function renderSites() {
   if (uns.length) {
     box.hidden = false;
     $('#unsCount').textContent = uns.length;
-    $('#unsList').innerHTML = uns.map((s) => '<span class="uns-tag" title="' + esc(s.api) + '">' + esc(s.name) + '</span>').join('');
+    $('#unsList').innerHTML = uns.map((s) =>
+      '<span class="uns-tag" title="' + esc(s.api) + '">' + esc(s.name) + '<i>' + (KIND_CN[s.kind] || s.type) + '</i></span>'
+    ).join('');
   } else {
     box.hidden = true;
   }
@@ -274,39 +277,41 @@ function renderGroup(site, list) {
   $('#results').appendChild(wrap);
 }
 
-/* ---------------- 详情 / 播放 ---------------- */
+/* ---------------- 详情 / 直链 ---------------- */
 
 async function openDetail(site, item) {
   openModal();
+  state.siteI = site._i;
   $('#mTitle').textContent = item.name;
   $('#mSub').textContent = '加载详情中…';
   $('#mUrl').value = '';
+  $('#mHint').hidden = true;
   $('#mRoutes').hidden = true;
   $('#mRoutes').innerHTML = '';
   $('#mEps').innerHTML = '<div class="empty">加载中…</div>';
   $('#mPic').hidden = true;
-  setVideoHint('正在获取播放直链…');
   try {
     const d = await api('/api/detail?cfg=' + state.cfgId + '&i=' + site._i + '&vid=' + enc(item.id));
     state.detail = d;
     $('#mTitle').textContent = d.name || item.name;
     const sub = [d.year, d.remarks, site.name].filter(Boolean).join(' · ');
     $('#mSub').textContent = sub;
-    if (d.pic) { $('#mPic').src = proxy(d.pic); $('#mPic').hidden = false; $('#mPic').onerror = () => { $('#mPic').hidden = true; }; }
+    if (d.pic) {
+      $('#mPic').src = d.pic;
+      $('#mPic').hidden = false;
+      $('#mPic').onerror = () => { $('#mPic').hidden = true; };
+    }
     state.routeIdx = 0;
     renderRoutes();
     renderEps();
-    const eps = currentEps();
-    if (!eps.length) {
-      $('#mEps').innerHTML = '<div class="empty">该源没有返回可播放的直链（可能只有片段或需要解析）</div>';
-      setVideoHint('没有可用直链');
+    if (!currentEps().length) {
+      $('#mEps').innerHTML = '<div class="empty">该源没有返回可解析的直链</div>';
     } else {
-      playEp(0);
+      showEp(0);
     }
   } catch (e) {
     $('#mSub').textContent = '获取失败';
     $('#mEps').innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
-    setVideoHint('获取详情失败：' + e.message);
   }
 }
 
@@ -319,7 +324,7 @@ function renderEps() {
     b.className = 'ep';
     b.textContent = ep.name;
     b.title = ep.url;
-    b.onclick = () => playEp(i);
+    b.onclick = () => showEp(i);
     box.appendChild(b);
   });
 }
@@ -342,7 +347,7 @@ function renderRoutes() {
     const b = document.createElement('button');
     b.className = 'route-btn' + (i === state.routeIdx ? ' on' : '');
     b.textContent = f.flag + '（' + f.episodes.length + '集）';
-    b.onclick = () => { state.routeIdx = i; renderRoutes(); renderEps(); playEp(0); };
+    b.onclick = () => { state.routeIdx = i; renderRoutes(); renderEps(); showEp(0); };
     box.appendChild(b);
   });
 }
@@ -353,66 +358,36 @@ function currentEps() {
   return d.froms[Math.min(state.routeIdx, d.froms.length - 1)].episodes;
 }
 
-function playEp(i) {
+function setHint(msg) {
+  const h = $('#mHint');
+  if (!msg) { h.hidden = true; return; }
+  h.textContent = msg;
+  h.hidden = false;
+}
+
+/* 点击剧集 → 解析最终直链并展示 */
+async function showEp(i) {
   const eps = currentEps();
   const ep = eps[i];
   if (!ep) return;
   document.querySelectorAll('.ep.on').forEach((x) => x.classList.remove('on'));
   const btns = $('#mEps').querySelectorAll('.ep');
   if (btns[i]) btns[i].classList.add('on');
+  state.epIdx = i;
+  setHint('');
   $('#mUrl').value = ep.url;
-  playUrl(ep.url);
-}
-
-function setVideoHint(msg) {
-  const h = $('#vHint');
-  if (!msg) { h.hidden = true; return; }
-  h.textContent = msg;
-  h.hidden = false;
-}
-
-function destroyHls() {
-  if (state.hls) {
-    try { state.hls.destroy(); } catch (_) { /* ignore */ }
-    state.hls = null;
-  }
-}
-
-function playUrl(url) {
-  const v = $('#video');
-  destroyHls();
-  v.removeAttribute('src');
-  v.load();
-  const isM3u8 = /\.m3u8?(\?|#|$)/i.test(url) || /m3u/i.test(url);
-
-  if (isM3u8) {
-    const src = proxy(url);
-    if (window.Hls && Hls.isSupported()) {
-      setVideoHint('正在加载流…');
-      const hls = new Hls({ maxBufferLength: 30, manifestLoadingTimeOut: 15000 });
-      state.hls = hls;
-      hls.on(Hls.Events.MANIFEST_PARSED, () => { setVideoHint(''); v.play().catch(() => {}); });
-      hls.on(Hls.Events.ERROR, (_, d) => {
-        if (d.fatal) {
-          if (d.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            setVideoHint('网络错误：直链可能已失效或源站限制，可复制直链到外部播放器');
-          } else {
-            setVideoHint('流解析失败，可复制直链到外部播放器播放');
-          }
-        }
-      });
-      hls.loadSource(src);
-      hls.attachMedia(v);
-    } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
-      v.src = src;
-      v.play().catch(() => {});
-    } else {
-      setVideoHint('当前浏览器不支持 HLS，可复制直链到播放器');
+  try {
+    const r = await api('/api/play?cfg=' + state.cfgId + '&i=' + state.siteI +
+      '&flag=' + enc(ep.flag || '') + '&url=' + enc(ep.url));
+    $('#mUrl').value = r.url;
+    const parts = [];
+    if (r.notes && r.notes.length) parts.push(r.notes.join('；'));
+    if (r.header) {
+      parts.push('需请求头：' + Object.entries(r.header).map(([k, v]) => k + ': ' + v).join(' | '));
     }
-  } else {
-    v.src = url;
-    setVideoHint('');
-    v.play().catch(() => setVideoHint('无法自动播放，点播放器按钮试试'));
+    setHint(parts.join(' · '));
+  } catch (e) {
+    setHint('直链解析失败：' + e.message + '（已展示原始链接）');
   }
 }
 
@@ -423,14 +398,9 @@ function openModal() {
 function closeModal() {
   $('#modal').hidden = true;
   document.body.style.overflow = '';
-  const v = $('#video');
-  destroyHls();
-  v.pause();
-  v.removeAttribute('src');
-  v.load();
 }
 
-/* ---------------- 直播 ---------------- */
+/* ---------------- 直播（点击即复制直链） ---------------- */
 
 function renderLiveSrc() {
   const sel = $('#liveSrc');
@@ -484,15 +454,10 @@ async function loadLive() {
         const b = document.createElement('button');
         b.className = 'live-ch';
         b.textContent = c.name;
-        b.onclick = () => {
-          openModal();
-          $('#mTitle').textContent = c.name;
-          $('#mSub').textContent = '直播 · ' + l.name;
-          $('#mPic').hidden = true;
-          $('#mUrl').value = c.url;
-          $('#mRoutes').hidden = true;
-          $('#mEps').innerHTML = '';
-          playUrl(c.url);
+        b.title = c.url;
+        b.onclick = async () => {
+          await copyText(c.url);
+          toast('已复制直链：' + c.name);
         };
         chs.appendChild(b);
       });
@@ -531,6 +496,12 @@ $('#mCopy').onclick = async () => {
   if (!u) { toast('还没有直链'); return; }
   await copyText(u);
   toast('直链已复制');
+};
+$('#mCopyAll').onclick = async () => {
+  const eps = currentEps();
+  if (!eps.length) { toast('没有可复制的直链'); return; }
+  await copyText(eps.map((e) => e.name + '$' + e.url).join('\n'));
+  toast('已复制 ' + eps.length + ' 条链接');
 };
 document.querySelectorAll('.tab').forEach((t) => { t.onclick = () => showTab(t.dataset.tab); });
 

@@ -46,7 +46,7 @@
       </div>
       <div id="siteList" class="site-list"><div class="empty">加载配置后显示可用源</div></div>
       <details id="unsBox" class="uns" hidden>
-        <summary><span id="unsCount">0</span> 个爬虫源不支持</summary>
+        <summary><span id="unsCount">0</span> 个爬虫/JS 源不支持</summary>
         <div id="unsList"></div>
       </details>
     </aside>
@@ -76,7 +76,6 @@
 <div id="modal" class="modal" hidden>
   <div class="modal-box">
     <button id="mClose" class="m-close" title="关闭">✕</button>
-    <div class="player-wrap"><video id="video" controls playsinline></video><div id="vHint" class="v-hint mono" hidden></div></div>
     <div class="m-meta">
       <img id="mPic" class="m-pic" hidden alt="">
       <div class="m-info">
@@ -85,9 +84,11 @@
       </div>
     </div>
     <div class="direct-row">
-      <input id="mUrl" class="ipt mono" readonly placeholder="播放直链">
+      <input id="mUrl" class="ipt mono" readonly placeholder="点击剧集获取视频直链">
       <button id="mCopy" class="btn ghost">复制直链</button>
+      <button id="mCopyAll" class="btn ghost">复制全部</button>
     </div>
+    <div id="mHint" class="r-hint mono dim" hidden></div>
     <div id="mRoutes" class="routes" hidden></div>
     <div id="mEps" class="eps"></div>
   </div>
@@ -95,7 +96,6 @@
 
 <div id="toast" class="toast mono" hidden></div>
 
-<script src="/vendor/hls.min.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

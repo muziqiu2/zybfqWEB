@@ -3,10 +3,12 @@
  * TVBox 直链搜索 — 零依赖本地服务
  * 职责：
  *  1. /api/config  拉取并解析 TVBox 配置（普通配置 / 多仓 / m3u 仓）
- *  2. /api/search  转发 MacCMS 搜索（type 0 JSON / type 1 XML）
- *  3. /api/detail  转发 MacCMS 详情，解析出各线路播放直链
- *  4. /api/stream  m3u8/分片流式代理（重写 m3u8 内部地址，附带 CORS 头）
- *  5. /api/m3u     直播源 m3u 拉取（文本化）
+ *  2. /api/search  搜索（type 0 JSON / type 1 XML / type 3 T3-HTTP 源）
+ *  3. /api/detail  详情，解析出各线路剧集
+ *  4. /api/play    解析单集最终直链（T3 play 端点 / 嵌套 m3u8 跟随）
+ *  5. /api/m3u     直播源 m3u 拉取（文本化，URL 绝对化）
+ * 源类型：cms（type 0/1，MacCMS 标准 HTTP）、t3（type 3 且 api 为 http URL）、
+ *        t4（type 4）、js（js:/ .js 脚本源）、jar（csp_ 爬虫，需安卓运行时）
  * 用法：node server.js  （可选环境变量 PORT / FETCH_TIMEOUT）
  */
 'use strict';
@@ -14,7 +16,6 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { Readable } = require('stream');
 
 const PORT = Number(process.env.PORT || 3000);
 const PUB = path.join(__dirname, 'public');
@@ -78,20 +79,31 @@ function buildUrl(api, params) {
   return q ? api + sep + q : api;
 }
 
-function proxUrl(abs) {
-  return '/api/stream?url=' + encodeURIComponent(abs);
-}
-
 /* ---------------- 配置解析 ---------------- */
+
+const KIND_NAME = { cms: 'CMS', t3: 'T3', t4: 'T4', js: 'JS', jar: 'SPIDER' };
 
 function normSite(s, i) {
   const api = typeof s.api === 'string' ? s.api.trim() : '';
   const type = Number(s.type) || 0;
-  const supported = (type === 0 || type === 1) && /^https?:\/\//i.test(api);
+  let kind = 'jar';
+  let supported = false;
+  if (type === 0 || type === 1) {
+    kind = 'cms';
+    supported = /^https?:\/\//i.test(api);
+  } else if (type === 3) {
+    // js:/ .js 结尾的是 JS 脚本爬虫（可能在 http 地址上），优先于 T3 判断
+    const base = api.split(';')[0];
+    if (/^js:/i.test(base) || /\.js(\?|#|$)/i.test(base)) kind = 'js';
+    else if (/^https?:\/\//i.test(api)) { kind = 't3'; supported = true; }
+  } else if (type === 4) {
+    kind = 't4';
+  }
   return {
     key: String(s.key || 'site' + i),
     name: String(s.name || s.key || '未命名源'),
     type,
+    kind,
     api,
     searchable: !(s.searchable === 0 || s.searchable === '0'),
     supported
@@ -219,7 +231,7 @@ async function cmsSearch(site, wd) {
   })).filter((x) => x.id);
 }
 
-function parsePlayUrls(fromStr, urlStr) {
+function parsePlayUrls(fromStr, urlStr, keepAll) {
   const flags = String(fromStr || '').split('$').map((x) => x.trim()).filter(Boolean);
   const groups = String(urlStr || '').split('$$$');
   const froms = [];
@@ -232,7 +244,8 @@ function parsePlayUrls(fromStr, urlStr) {
       const k = e.indexOf('$');
       const name = k >= 0 ? e.slice(0, k).trim() : '第' + (n + 1) + '集';
       const url = k >= 0 ? e.slice(k + 1).trim() : e;
-      if (!/^https?:\/\//i.test(url)) return;
+      // CMS 源只保留 http 直链；T3 源保留全部（非 http 的是 play 端点集数标识）
+      if (!keepAll && !/^https?:\/\//i.test(url)) return;
       eps.push({ name: name || '第' + (n + 1) + '集', url });
       n++;
     });
@@ -292,27 +305,64 @@ async function cmsDetail(site, id) {
   };
 }
 
-/* ---------------- m3u8 重写 / 流代理 ---------------- */
+/* ---------------- T3 HTTP 源（猫影视 / drpy / hipy 协议） ----------------
+ * type 3 且 api 为 http URL：搜索 ?wd=、详情 ?ids=、播放 ?flag=&play=
+ * 返回 MacCMS 风格 JSON（class/list 字段）
+ */
 
-function rewriteM3u8(text, base) {
+function pickList(j) {
+  if (Array.isArray(j.list)) return j.list;
+  if (Array.isArray(j.data)) return j.data;
+  return [];
+}
+
+function t3Map(list) {
+  return list.slice(0, 60).map((v) => ({
+    id: String(v.vod_id != null ? v.vod_id : (v.id != null ? v.id : '')),
+    name: String(v.vod_name || v.name || ''),
+    year: String(v.vod_year || v.year || ''),
+    remarks: String(v.vod_remarks || v.remarks || '')
+  })).filter((x) => x.id && x.name);
+}
+
+async function t3Search(site, wd) {
+  const j = JSON.parse((await fetchText(buildUrl(site.api, { wd }))).text);
+  return t3Map(pickList(j));
+}
+
+async function t3Detail(site, id) {
+  const j = JSON.parse((await fetchText(buildUrl(site.api, { ids: id }))).text);
+  const v = pickList(j)[0] || {};
+  return {
+    name: String(v.vod_name || v.name || ''),
+    year: String(v.vod_year || v.year || ''),
+    remarks: String(v.vod_remarks || v.remarks || ''),
+    pic: String(v.vod_pic || v.pic || ''),
+    froms: parsePlayUrls(v.vod_play_from || v.play_from, v.vod_play_url || v.play_url, true)
+  };
+}
+
+/* ---------------- m3u 文本 / 直链解析 ---------------- */
+
+// m3u / m3u8 内相对地址转绝对（不做代理重写，仅保证复制出去的链接可直接用）
+function absM3u(text, base) {
   return text
     .split(/\r?\n/)
     .map((line) => {
       const t = line.trim();
       if (!t) return line;
       if (t.startsWith('#')) {
-        // 重写 EXT-X-KEY / EXT-X-MAP / EXT-X-MEDIA 里的 URI
         return t.replace(/URI="([^"]+)"/g, (m, uri) => {
           if (!uri || uri.startsWith('#')) return m;
           try {
-            return 'URI="' + proxUrl(new URL(uri, base).href) + '"';
+            return 'URI="' + new URL(uri, base).href + '"';
           } catch (_) {
             return m;
           }
         });
       }
       try {
-        return proxUrl(new URL(t, base).href);
+        return new URL(t, base).href;
       } catch (_) {
         return line;
       }
@@ -320,51 +370,58 @@ function rewriteM3u8(text, base) {
     .join('\n');
 }
 
-async function handleStream(req, res, u) {
-  if (!/^https?:\/\//i.test(u)) throw new Error('无效的流地址');
-  const ac = new AbortController();
-  req.on('close', () => ac.abort(new Error('客户端断开')));
-  const upstream = await fetchRes(u, {
-    signal: ac.signal,
-    headers: { Referer: new URL(u).origin + '/', Range: req.headers.range || '' }
-  });
-  const ct = upstream.headers.get('content-type') || '';
-  const finalUrl = upstream.url || u;
-  let body = null;
-  let isM3u8 = /\.m3u8?(\?|#|$)/i.test(finalUrl) || /mpegurl/i.test(ct);
-  if (!isM3u8) {
-    // 内容嗅探：部分直播源返回 text/html 但内容是 m3u
+const MEDIA_RE = /\.(m3u8?|mp4|mkv|flv|avi|mov|webm|ts|mp3|aac|m4a)(\?|#|$)/i;
+
+/**
+ * 解析单集最终直链：
+ *  - T3 源：集数标识不是 http 时走 ?flag=&play= 端点换取真实 URL
+ *  - m3u8：请求清单内容，若是主清单（EXT-X-STREAM-INF）则跟随到媒体清单
+ *  - 返回 notes 说明解析过程，header 为源站要求的请求头
+ */
+async function resolveDirect(site, flag, epUrl) {
+  let target = String(epUrl || '');
+  let header = null;
+  const notes = [];
+
+  if (site.kind === 't3') {
+    if (!/^https?:\/\//i.test(target)) {
+      const j = JSON.parse((await fetchText(buildUrl(site.api, { flag, play: target }))).text);
+      target = String(j.url || j.play_url || '');
+      if (j.header && typeof j.header === 'object') header = j.header;
+      if (j.jx === 1 || j.parse === 1) notes.push('源站标记为网页解析（jx/parse），可能需要嗅探');
+    } else {
+      notes.push('T3 直出链接');
+    }
+  }
+  if (!/^https?:\/\//i.test(target)) throw new Error('未能解析出 http 直链');
+
+  const looksM3u8 = /\.m3u8?(\?|#|$)/i.test(target);
+  const looksMedia = MEDIA_RE.test(target);
+
+  // m3u8（或无法从扩展名判断的 T3 链接）：预检内容
+  if (looksM3u8 || (!looksMedia && site.kind === 't3')) {
     try {
-      const clone = upstream.clone();
-      const head = (await clone.text()).slice(0, 512);
-      if (head.trimStart().startsWith('#EXTM3U')) {
-        isM3u8 = true;
-        body = head + (await upstream.text()).slice(512);
+      const { text, finalUrl, headers } = await fetchText(target);
+      if (/mpegurl/i.test(headers.get('content-type') || '') || text.includes('#EXTM3U')) {
+        if (text.includes('#EXT-X-STREAM-INF')) {
+          const child = text.split(/\r?\n/).map((l) => l.trim()).find((l) => l && !l.startsWith('#'));
+          if (child) {
+            notes.push('已跟随 m3u8 主清单 → 媒体清单');
+            return { url: new URL(child, finalUrl).href, header, notes };
+          }
+        }
+        notes.push(text.includes('#EXTINF') ? '已是媒体清单直链' : 'm3u8 清单直链');
+        return { url: target, header, notes };
       }
-    } catch (_) { /* 忽略，按二进制流处理 */ }
+      if (!looksM3u8) notes.push('内容不是 m3u8，按原始链接返回');
+    } catch (e) {
+      notes.push('m3u8 预检失败（' + e.message + '），返回原始链接');
+    }
+    return { url: target, header, notes };
   }
 
-  if (isM3u8) {
-    const text = body !== null ? body : await upstream.text();
-    const out = rewriteM3u8(text, finalUrl);
-    res.writeHead(200, {
-      'Content-Type': 'application/vnd.apple.mpegurl',
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'no-store'
-    });
-    res.end(out);
-    return;
-  }
-
-  const h = { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
-  if (ct) h['Content-Type'] = ct;
-  const cr = upstream.headers.get('content-range');
-  if (cr) h['Content-Range'] = cr;
-  const ar = upstream.headers.get('accept-ranges');
-  if (ar) h['Accept-Ranges'] = ar;
-  res.writeHead(upstream.status, h);
-  if (!upstream.body) return res.end();
-  Readable.fromWeb(upstream.body).pipe(res);
+  if (looksMedia) return { url: target, header, notes };
+  return { url: target, header, notes: [...notes, '非媒体扩展名，可能是需嗅探的网页链接'] };
 }
 
 /* ---------------- HTTP 服务 ---------------- */
@@ -401,8 +458,8 @@ async function api(req, res, u) {
     const site = siteAt(q.get('cfg'), q.get('i'));
     const wd = (q.get('wd') || '').trim().slice(0, 60);
     if (!wd) throw new Error('参数不完整');
-    if (!site.supported) throw new Error('该源类型暂不支持（需要 TVBox 爬虫运行时）');
-    const list = await cmsSearch(site, wd);
+    if (!site.supported) throw new Error('该源类型暂不支持（' + KIND_NAME[site.kind] + ' 源需要爬虫运行时）');
+    const list = site.kind === 't3' ? await t3Search(site, wd) : await cmsSearch(site, wd);
     return json(res, { ok: true, list });
   }
 
@@ -410,20 +467,26 @@ async function api(req, res, u) {
     const site = siteAt(q.get('cfg'), q.get('i'));
     const vid = (q.get('vid') || '').trim();
     if (!vid) throw new Error('参数不完整');
-    if (!site.supported) throw new Error('该源类型暂不支持（需要 TVBox 爬虫运行时）');
-    const data = await cmsDetail(site, vid);
+    if (!site.supported) throw new Error('该源类型暂不支持（' + KIND_NAME[site.kind] + ' 源需要爬虫运行时）');
+    const data = site.kind === 't3' ? await t3Detail(site, vid) : await cmsDetail(site, vid);
     return json(res, { ok: true, ...data });
   }
 
-  if (route === '/api/stream') {
-    return handleStream(req, res, q.get('url') || '');
+  if (route === '/api/play') {
+    const site = siteAt(q.get('cfg'), q.get('i'));
+    const flag = q.get('flag') || '';
+    const url = q.get('url') || '';
+    if (!url) throw new Error('参数不完整');
+    if (!site.supported) throw new Error('该源类型暂不支持（' + KIND_NAME[site.kind] + ' 源需要爬虫运行时）');
+    const r = await resolveDirect(site, flag, url);
+    return json(res, { ok: true, ...r });
   }
 
   if (route === '/api/m3u') {
     const url = q.get('url') || '';
     const { text } = await fetchText(url, { timeout: 20000 });
     if (!text.trimStart().startsWith('#EXTM3U')) throw new Error('不是有效的 M3U 列表');
-    return json(res, { ok: true, text: rewriteM3u8(text, url) });
+    return json(res, { ok: true, text: absM3u(text, url) });
   }
 
   json(res, { ok: false, error: '未知接口 ' + route });
