@@ -1,0 +1,9 @@
+{
+  "name": "tvbox-direct",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TVBox 配置直链搜索（零依赖）",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
