@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TVBox 线路直链工具</title>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <style>
   :root {
     --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #2a2f3a;
@@ -32,6 +32,7 @@
   .stats { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
   .stats b { color: var(--text); }
   .spider { color: var(--muted); font-size: 12px; word-break: break-all; margin-bottom: 12px; }
+  .notice { background: #2e1f1b; border: 1px solid #5a3328; border-radius: 8px; color: #f0b9a8; font-size: 13px; padding: 10px 12px; margin-bottom: 12px; }
   .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; flex-wrap: wrap; }
   .filter label { color: var(--muted); font-size: 13px; margin-right: 10px; cursor: pointer; }
   .site-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; max-height: 300px; overflow: auto; }
@@ -84,7 +85,19 @@
     <button id="btnLoad" onclick="loadConfig()">加载线路</button>
   </div>
 
+  <div class="panel" id="quickPanel">
+    <div style="color:var(--muted);font-size:13px;margin-bottom:8px">手头线路没有可用站点？用内置 CMS 资源源立即体验完整流程：</div>
+    <div class="row" style="flex-wrap:wrap;align-items:center">
+      <button class="mini" onclick="useBuiltin('暴风资源','https://bfzyapi.com/api.php/provide/vod')">暴风资源</button>
+      <button class="mini" onclick="useBuiltin('量子资源','https://cj.lziapi.com/api.php/provide/vod')">量子资源</button>
+      <button class="mini" onclick="useBuiltin('非凡资源','https://api.ffzyapi.com/api.php/provide/vod')">非凡资源</button>
+      <input type="text" id="customApi" style="min-width:260px" placeholder="或粘贴单个CMS接口：https://xx/api.php/provide/vod">
+      <button class="mini ghost" onclick="useCustom()">添加</button>
+    </div>
+  </div>
+
   <div class="panel" id="cfgPanel" style="display:none">
+    <div class="notice" id="notice" style="display:none"></div>
     <div class="stats" id="stats"></div>
     <div class="spider" id="spider"></div>
     <div class="toolbar">
@@ -145,6 +158,13 @@ async function loadConfig() {
       `站点总数 <b>${CFG.total}</b> <span style="color:var(--ok)">可搜索 <b>${CFG.supported}</b></span> ` +
       `<span style="color:var(--bad)">不支持 <b>${CFG.total - CFG.supported}</b></span>`;
     document.getElementById('spider').textContent = CFG.spider ? 'spider: ' + CFG.spider : '';
+    const nc = document.getElementById('notice');
+    if (CFG.total > 0 && CFG.supported === 0) {
+      nc.innerHTML = `该线路的 ${CFG.total} 个站点全部为 jar 蜘蛛 / drpy 等需在 TVBox 客户端内运行的类型，` +
+        `服务端无法执行其采集逻辑，因此无法搜索。可改用含「苹果CMS接口」站点的线路，或直接用下方内置资源源体验。`;
+      nc.style.display = 'block';
+      document.querySelector('input[name=f][value=all]').checked = true; // 切到全部站点查看原因
+    } else { nc.style.display = 'none'; }
     renderSites();
   } catch (e) { toast(e.message); } finally { btn.disabled = false; }
 }
@@ -157,6 +177,22 @@ function renderSites() {
       <div class="nm">${esc(s.name)}</div>
       <span class="badge ${s.supported ? 'ok' : 'no'}">${s.supported ? 'CMS·可搜索' : esc(s.reason)}</span>
     </div>`).join('') || '<div class="empty">该线路下没有符合条件的站点</div>';
+}
+
+function useBuiltin(name, api) {
+  activateSite({ key: name, name, type: 1, api, supported: true, reason: '内置CMS资源源' });
+}
+function useCustom() {
+  let api = document.getElementById('customApi').value.trim();
+  if (!/^https?:\/\//.test(api)) return toast('请输入以 http(s):// 开头的CMS接口地址');
+  const host = api.replace(/^https?:\/\//, '').split('/')[0];
+  activateSite({ key: host, name: '自定义·' + host, type: 1, api, supported: true, reason: '自定义CMS接口' });
+}
+function activateSite(s) {
+  document.getElementById('cfgPanel').style.display = 'block';
+  SITES = [s, ...SITES.filter(x => x.api !== s.api)];
+  pickSite(s);
+  window.scrollTo({ top: document.getElementById('cfgPanel').offsetTop - 12, behavior: 'smooth' });
 }
 
 function pickSite(s) {
