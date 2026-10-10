@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TVBox 线路直链工具</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #2a2f3a;
+    --text: #e6e8ee; --muted: #8a91a3; --acc: #4f8cff; --ok: #34c77b; --bad: #e0644f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 20px; }
+  .row { display: flex; gap: 8px; }
+  input[type=text] {
+    flex: 1; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--text); padding: 10px 12px; font-size: 14px; outline: none;
+  }
+  input[type=text]:focus { border-color: var(--acc); }
+  button {
+    background: var(--acc); color: #fff; border: 0; border-radius: 8px;
+    padding: 10px 18px; font-size: 14px; cursor: pointer; white-space: nowrap;
+  }
+  button:disabled { opacity: .5; cursor: wait; }
+  button.ghost { background: var(--panel2); border: 1px solid var(--line); color: var(--text); }
+  button.mini { padding: 3px 10px; font-size: 12px; border-radius: 6px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-top: 16px; }
+  .stats { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .stats b { color: var(--text); }
+  .spider { color: var(--muted); font-size: 12px; word-break: break-all; margin-bottom: 12px; }
+  .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; flex-wrap: wrap; }
+  .filter label { color: var(--muted); font-size: 13px; margin-right: 10px; cursor: pointer; }
+  .site-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; max-height: 300px; overflow: auto; }
+  .site {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; cursor: pointer; overflow: hidden;
+  }
+  .site:hover { border-color: var(--acc); }
+  .site.sel { border-color: var(--acc); background: #20304d; }
+  .site .nm { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { display: inline-block; font-size: 11px; border-radius: 4px; padding: 0 6px; margin-top: 2px; }
+  .badge.ok { background: #123826; color: var(--ok); }
+  .badge.no { background: #3a211c; color: var(--bad); }
+  .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 12px; }
+  .card { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; transition: transform .12s; }
+  .card:hover { transform: translateY(-2px); border-color: var(--acc); }
+  .card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; background: #222; }
+  .card .info { padding: 8px 10px; }
+  .card .t { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .r { font-size: 12px; color: var(--muted); }
+  .empty { color: var(--muted); text-align: center; padding: 30px 0; font-size: 13px; }
+  .mask { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 10; }
+  .mask.show { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; width: min(680px, 94vw); max-height: 88vh; overflow: auto; padding: 18px; }
+  .modal h3 { font-size: 16px; margin-bottom: 10px; }
+  .tabs { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+  .tab { padding: 4px 14px; border-radius: 16px; background: var(--panel2); border: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+  .tab.on { background: var(--acc); border-color: var(--acc); color: #fff; }
+  .ep-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+  .ep {
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 8px; font-size: 12px; display: flex; justify-content: space-between; gap: 6px; align-items: center;
+  }
+  .ep .en { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  video { width: 100%; border-radius: 10px; background: #000; max-height: 60vh; }
+  #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #332; color: #ffd; border: 1px solid #663;
+    padding: 8px 18px; border-radius: 8px; font-size: 13px; display: none; z-index: 20; }
+  .player-box { margin-bottom: 12px; }
+  .link-line { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+  .link-line input { flex: 1; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>TVBox 线路直链工具</h1>
+  <div class="sub">输入线路配置地址 → 解析站点 → 搜索资源 → 提取各集 m3u8 / mp4 直链（支持明文 JSON、base64、图片藏数据配置；jar 蜘蛛站点暂不支持）</div>
+
+  <div class="row">
+    <input type="text" id="cfgUrl" placeholder="例如：http://www.饭太硬.cc/tv  或其它 TVBox 配置接口">
+    <button id="btnLoad" onclick="loadConfig()">加载线路</button>
+  </div>
+
+  <div class="panel" id="cfgPanel" style="display:none">
+    <div class="stats" id="stats"></div>
+    <div class="spider" id="spider"></div>
+    <div class="toolbar">
+      <div class="filter">
+        <label><input type="radio" name="f" value="ok" checked onchange="renderSites()"> 仅可搜索站点</label>
+        <label><input type="radio" name="f" value="all" onchange="renderSites()"> 全部站点</label>
+      </div>
+      <div class="row" id="searchRow" style="display:none">
+        <input type="text" id="kw" placeholder="输入片名搜索，如：庆余年" onkeydown="if(event.key==='Enter')doSearch()">
+        <button onclick="doSearch()">搜索</button>
+      </div>
+    </div>
+    <div class="site-grid" id="siteGrid"></div>
+    <div class="results" id="results"></div>
+    <div class="empty" id="hint">选择一个「可搜索」站点后输入关键词搜索</div>
+  </div>
+</div>
+
+<div class="mask" id="detailMask"><div class="modal" id="detailModal"></div></div>
+<div class="mask" id="playerMask"><div class="modal">
+  <div class="player-box"><video id="player" controls autoplay></video></div>
+  <div class="link-line">
+    <input type="text" id="playLink" readonly>
+    <button class="mini" onclick="copyLink()">复制直链</button>
+    <button class="mini ghost" onclick="closePlayer()">关闭</button>
+  </div>
+</div></div>
+<div id="toast"></div>
+
+<script>
+let CFG = null, SITES = [], SEL = null;
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', 2600);
+}
+async function api(path, body) {
+  const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({ detail: '响应解析失败' }));
+  if (!r.ok) throw new Error(d.detail || r.statusText);
+  return d;
+}
+
+async function loadConfig() {
+  const url = document.getElementById('cfgUrl').value.trim();
+  if (!url) return toast('请输入线路地址');
+  const btn = document.getElementById('btnLoad'); btn.disabled = true;
+  try {
+    CFG = await api('/api/load', { url });
+    SITES = CFG.sites; SEL = null;
+    document.getElementById('cfgPanel').style.display = 'block';
+    document.getElementById('results').innerHTML = '';
+    document.getElementById('searchRow').style.display = 'none';
+    document.getElementById('hint').style.display = 'block';
+    document.getElementById('hint').textContent = '选择一个「可搜索」站点后输入关键词搜索';
+    document.getElementById('stats').innerHTML =
+      `站点总数 <b>${CFG.total}</b> <span style="color:var(--ok)">可搜索 <b>${CFG.supported}</b></span> ` +
+      `<span style="color:var(--bad)">不支持 <b>${CFG.total - CFG.supported}</b></span>`;
+    document.getElementById('spider').textContent = CFG.spider ? 'spider: ' + CFG.spider : '';
+    renderSites();
+  } catch (e) { toast(e.message); } finally { btn.disabled = false; }
+}
+
+function renderSites() {
+  const onlyOk = document.querySelector('input[name=f]:checked').value === 'ok';
+  const list = SITES.filter(s => !onlyOk || s.supported);
+  document.getElementById('siteGrid').innerHTML = list.map((s, i) => `
+    <div class="site ${SEL === s ? 'sel' : ''}" onclick='pickSite(${JSON.stringify(s).replace(/'/g, "&#39;")})'>
+      <div class="nm">${esc(s.name)}</div>
+      <span class="badge ${s.supported ? 'ok' : 'no'}">${s.supported ? 'CMS·可搜索' : esc(s.reason)}</span>
+    </div>`).join('') || '<div class="empty">该线路下没有符合条件的站点</div>';
+}
+
+function pickSite(s) {
+  if (!s.supported) return toast('该站点暂不支持：' + s.reason);
+  SEL = s;
+  renderSites();
+  document.getElementById('searchRow').style.display = 'flex';
+  document.getElementById('hint').textContent = `已选站点：${s.name}，输入关键词搜索`;
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('kw').focus();
+}
+
+async function doSearch() {
+  const wd = document.getElementById('kw').value.trim();
+  if (!SEL || !wd) return toast('请先选择站点并输入关键词');
+  document.getElementById('hint').style.display = 'none';
+  const box = document.getElementById('results');
+  box.innerHTML = '<div class="empty">搜索中...</div>';
+  try {
+    const d = await api('/api/search', { api: SEL.api, type: SEL.type, wd });
+    box.innerHTML = d.list.map(v => `
+      <div class="card" onclick='openDetail(${JSON.stringify(v).replace(/'/g, "&#39;")})'>
+        <img loading="lazy" src="${esc(v.pic) || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22/%3E'}" onerror="this.style.visibility='hidden'">
+        <div class="info"><div class="t" title="${esc(v.name)}">${esc(v.name)}</div><div class="r">${esc(v.remarks)}</div></div>
+      </div>`).join('') || '<div class="empty">没有搜索到资源</div>';
+    if (!d.list.length) box.innerHTML = '<div class="empty">没有搜索到资源</div>';
+  } catch (e) { box.innerHTML = ''; toast(e.message); }
+}
+
+async function openDetail(v) {
+  const m = document.getElementById('detailModal');
+  m.innerHTML = '<div class="empty">加载详情中...</div>';
+  document.getElementById('detailMask').classList.add('show');
+  try {
+    const d = await api('/api/detail', { api: SEL.api, type: SEL.type, id: v.id });
+    d.sources = d.sources || [];
+    m.innerHTML = `<h3>${esc(d.name)}</h3>
+      ${d.content ? `<div style="color:var(--muted);font-size:12px;margin-bottom:6px">${esc(d.content.slice(0, 160))}</div>` : ''}
+      <div class="tabs" id="srcTabs">${d.sources.map((s, i) =>
+        `<div class="tab ${i === 0 ? 'on' : ''}" onclick="showSrc(${i})">${esc(s.from)}（${s.episodes.length}集）</div>`).join('')}</div>
+      <div class="ep-list" id="epList"></div>`;
+    m._sources = d.sources;
+    showSrc(0);
+  } catch (e) {
+    m.innerHTML = '<div class="empty">' + esc(e.message) + '</div>';
+  }
+}
+function showSrc(i) {
+  const m = document.getElementById('detailModal');
+  [...m.querySelectorAll('.tab')].forEach((t, j) => t.classList.toggle('on', j === i));
+  const src = m._sources[i];
+  document.getElementById('epList').innerHTML = src.episodes.map((ep, j) => `
+    <div class="ep">
+      <span class="en" title="${esc(ep.url)}">${esc(ep.name)}</span>
+      <button class="mini" onclick='play(${JSON.stringify(ep.url).replace(/'/g, "&#39;")})'>播放</button>
+      <button class="mini ghost" onclick='copyText(${JSON.stringify(ep.url).replace(/'/g, "&#39;")})'>复制</button>
+    </div>`).join('') || '<div class="empty">该源未解析到可播放链接</div>';
+}
+
+let hls = null;
+function play(url) {
+  const v = document.getElementById('player');
+  document.getElementById('playLink').value = url;
+  if (hls) { hls.destroy(); hls = null; }
+  if (url.includes('.m3u8') && !v.canPlayType('application/vnd.apple.mpegurl') && window.Hls) {
+    hls = new Hls(); hls.loadSource(url); hls.attachMedia(v);
+    hls.on(Hls.Events.MANIFEST_PARSED, () => v.play());
+    hls.on(Hls.Events.ERROR, (_, data) => { if (data.fatal) toast('播放失败，可复制直链到播放器打开'); });
+  } else {
+    v.src = url; v.play().catch(() => toast('浏览器无法直接播放该格式，可复制直链'));
+  }
+  document.getElementById('playerMask').classList.add('show');
+}
+function closePlayer() {
+  const v = document.getElementById('player'); v.pause(); v.removeAttribute('src'); v.load();
+  if (hls) { hls.destroy(); hls = null; }
+  document.getElementById('playerMask').classList.remove('show');
+}
+function copyLink() { copyText(document.getElementById('playLink').value); }
+function copyText(t) {
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject())
+    .then(() => toast('已复制'))
+    .catch(() => { const i = document.createElement('textarea'); i.value = t; document.body.appendChild(i);
+      i.select(); document.execCommand('copy'); i.remove(); toast('已复制'); });
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+document.getElementById('detailMask').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('show'); });
+document.getElementById('playerMask').addEventListener('click', e => { if (e.target === e.currentTarget) closePlayer(); });
+</script>
+</body>
+</html>
